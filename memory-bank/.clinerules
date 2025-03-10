@@ -1,0 +1,197 @@
+# Cline's Project Intelligence
+
+This file captures important patterns, preferences, and project intelligence that will help me work more effectively with the Solana Token Analysis Agent Swarm project.
+
+## Solana Agent Kit Integration Notes
+
+### MCP Server Development Patterns
+1. **Node.js Best Practices**
+   - Use ES Modules for imports/exports (required for MCP SDK)
+   - Implement proper error handling in promise chains
+   - Use clean async/await patterns throughout
+   - Leverage file-based persistence for storing state
+
+2. **MCP Server Structure**
+   - Each server should have a clear, focused purpose
+   - Tools should have descriptive names and intuitive parameters
+   - Error messages should be detailed and actionable
+   - All operations should be properly logged for debugging
+
+3. **Cross-Language Integration**
+   - Use JSON for all data exchange between Python and Node.js
+   - Implement consistent error handling patterns
+   - Define clear data schemas for all exchanged objects
+   - Create thorough documentation for all integration points
+
+### Solana Agent Kit Usage
+1. **Environment Setup**
+   - Store private keys as environment variables, never in code
+   - Use different RPC endpoints for development vs. production
+   - Configure appropriate rate limiting for API calls
+   - Test API connectivity before performing blockchain operations
+
+2. **Action Execution**
+   - Simulate transactions before executing when possible
+   - Implement proper error handling for network failures
+   - Add retry logic for transient blockchain errors
+   - Log all transaction details for audit purposes
+
+3. **Tool Integration**
+   - Use `createSolanaTools` for LangChain integration
+   - Access actions directly via `SolanaAgentKit` instance
+   - Leverage TypeScript interfaces for proper typing
+   - Follow defined patterns for asynchronous operations
+
+## Phase 2 Implementation Notes
+
+### Solana RPC Integration Best Practices
+1. **Connection Management**
+   - Implement connection pooling for RPC endpoints
+   - Use exponential backoff for retry logic
+   - Cache common blockchain queries
+   - Maintain WebSocket connections with heartbeats
+
+2. **Token Data Processing**
+   - Normalize token data to standard schema before storage
+   - Extract key metrics: supply, holders, price, volume
+   - Calculate derived metrics: holder concentration, liquidity ratio
+   - Apply consistent timestamp formatting: ISO 8601 UTC
+
+3. **WebSocket Subscription Handling**
+   - Maintain subscription state between reconnections
+   - Buffer events during processing backpressure
+   - Use connection keep-alive mechanisms
+   - Implement graceful degradation to polling when websocket fails
+
+### Inter-Agent Communication Patterns
+1. **Message Flow**
+   - Orchestrator acts as central message router (not a bus)
+   - Use direct point-to-point messaging for synchronous operations
+   - Use broadcast patterns for token discovery events
+   - Include source and target agent IDs for all directed messages
+
+2. **Request-Response Cycle**
+   - Always use correlation IDs to match responses to requests
+   - Include timeouts for all request-response patterns
+   - Structure response messages with standard success/error fields
+   - Handle partial responses for long-running operations
+
+3. **Event Broadcasting**
+   - Use the EVENT message type for notifications
+   - Include detailed event metadata (timestamp, source, event type)
+   - Structure event payloads consistently
+   - Allow agents to subscribe to specific event types
+
+### Knowledge Base Usage Patterns
+1. **Data Organization**
+   - Use consistent prefix conventions for entry IDs (e.g., "token:", "pattern:")
+   - Group related data with common tags
+   - Include source agent information with all entries
+   - Set appropriate TTL for different data types
+
+2. **Query Optimization**
+   - Use specific entry types when querying to improve performance
+   - Filter by tags for focused results
+   - Include custom filter functions for complex queries
+   - Cache repeated query results when appropriate
+
+## Code Patterns and Conventions
+
+### Python Best Practices
+
+1. **Type Annotations**
+   - All function parameters and return values should use type annotations
+   - Use `Optional[Type]` for parameters that can be None
+   - Use `List`, `Dict`, `Set` from `typing` module for container types
+
+2. **Async/Await Usage**
+   - All agent methods use `async/await` patterns
+   - Message handling is asynchronous
+   - Use `asyncio.Queue` for message passing
+   - Avoid blocking operations in async functions
+
+3. **Error Handling**
+   - Use structured try/except blocks
+   - Log errors with appropriate context
+   - Update agent status to reflect error conditions
+   - Propagate errors through message system when appropriate
+
+### Project-Specific Conventions
+
+1. **Agent Implementation**
+   - All agents inherit from the base `Agent` class
+   - Override the abstract methods: `_initialize()`, `_handle_message()`, `_cleanup()`
+   - Register with the orchestrator during initialization
+   - Update status periodically
+
+2. **Message Handling**
+   - Messages should follow the `Message` class structure
+   - Use appropriate `MessageType` enum values
+   - Include correlation IDs for request/response tracking
+   - Set appropriate priority levels (1-10)
+
+3. **Knowledge Base Interaction**
+   - All token data should be stored in the knowledge base
+   - Use consistent key structures for token lookup
+   - Include timestamp information with all stored data
+   - Query with specific criteria rather than retrieving large datasets
+
+## Implementation Notes
+
+1. **Agent Lifecycle**
+   - Initialization → Ready → Running → Stopped flow
+   - Handle transitions between states gracefully
+   - Clean up resources during stop operations
+   - Report status changes to orchestrator
+
+2. **Message Processing**
+   - Messages processed in priority order
+   - Inbound messages trigger handler callbacks
+   - Outbound messages routed through orchestrator
+   - Use message correlation to track request chains
+
+3. **Blockchain Integration**
+   - Handle network timeouts and retries
+   - Normalize data from RPC responses
+   - Use WebSocket for real-time events when possible
+   - Fallback to polling when WebSocket not available
+
+## System Gotchas and Insights
+
+1. **Common Pitfalls**
+   - Avoid blocking operations in async message handlers
+   - Watch for memory growth in the knowledge base
+   - Handle WebSocket disconnections gracefully
+   - Ensure message queues don't grow unbounded
+
+2. **Performance Considerations**
+   - Batch blockchain RPC requests when possible
+   - Implement caching for frequently accessed data
+   - Use lightweight message structures
+   - Monitor queue sizes for backpressure detection
+
+3. **Extension Points**
+   - New agent types can be added by subclassing `Agent`
+   - Analysis algorithms can be plugged into existing agents
+   - Configuration system allows runtime parameter adjustment
+   - Message types can be extended for special purposes
+
+## Debugging Approaches
+
+1. **Logging Strategies**
+   - Use appropriate log levels (debug, info, warning, error)
+   - Include context information in log messages
+   - Log message IDs for tracing request flows
+   - Enable debug logging selectively for specific components
+
+2. **Common Issues**
+   - Agents not receiving messages: Check registration with orchestrator
+   - System appears to hang: Look for blocked async operations
+   - High error rates: Check Solana RPC connectivity
+   - Inconsistent results: Verify knowledge base queries
+
+3. **Development Tools**
+   - Use CLI's debug commands for agent inspection
+   - Monitor agent status metrics for health checks
+   - Examine message queues for processing bottlenecks
+   - Check task registry for stuck operations
