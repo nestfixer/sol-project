@@ -12,6 +12,7 @@ The Solana Token Analysis Agent Swarm project is currently in **Phase 2+ (Enhanc
 - ✅ Agent lifecycle management
 - ✅ Message routing framework
 - ✅ Orchestrator implementation with agent registry
+- ✅ Confidence level reporting system
 
 ### Project Setup
 - ✅ Project structure and organization

@@ -38,6 +38,10 @@ The development of the Solana Token Analysis Agent Swarm is currently focused on
 - Implemented autonomous pattern detection with learning capabilities
 - Developed blacklist system for tracking malicious wallets
 - Created risk scoring algorithms for token analysis
+- Added confidence level reporting to Agent base class:
+  - Messages can now include confidence scores (1-10)
+  - Agents can report confidence levels for completed tasks
+  - Provides quantitative measure of analysis reliability
 
 ## Next Steps
 

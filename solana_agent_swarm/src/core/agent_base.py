@@ -45,6 +45,7 @@ class Message:
         target_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         priority: int = 1,
+        confidence_level: Optional[int] = None,
     ):
         self.id = str(uuid.uuid4())
         self.type = msg_type
@@ -54,6 +55,7 @@ class Message:
         self.timestamp = datetime.utcnow().isoformat()
         self.correlation_id = correlation_id or self.id
         self.priority = priority  # 1 (lowest) to 10 (highest)
+        self.confidence_level = confidence_level  # 1 (lowest) to 10 (highest), None if not applicable
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the message to a dictionary."""
@@ -66,6 +68,7 @@ class Message:
             "timestamp": self.timestamp,
             "correlation_id": self.correlation_id,
             "priority": self.priority,
+            "confidence_level": self.confidence_level,
         }
     
     @classmethod
@@ -78,6 +81,7 @@ class Message:
             target_id=data.get("target_id"),
             correlation_id=data.get("correlation_id"),
             priority=data.get("priority", 1),
+            confidence_level=data.get("confidence_level"),
         )
         msg.id = data["id"]
         msg.timestamp = data["timestamp"]
@@ -146,6 +150,35 @@ class Agent(ABC):
         await self.outbound_queue.put(message)
         logger.debug(f"Agent {self.id} queued message {message.id} for sending")
     
+    async def send_confidence_report(self, task_name: str, confidence_level: int, details: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Send a confidence level report after completing a task.
+        
+        Args:
+            task_name: The name of the completed task
+            confidence_level: Confidence level from 1 (lowest) to 10 (highest)
+            details: Optional additional details about the task
+        """
+        if not 1 <= confidence_level <= 10:
+            logger.warning(f"Confidence level must be between 1 and 10, got {confidence_level}. Clamping to valid range.")
+            confidence_level = max(1, min(confidence_level, 10))
+            
+        content = {
+            "task_name": task_name,
+            "details": details or {},
+            "result": "completed"
+        }
+        
+        message = Message(
+            msg_type=MessageType.STATUS,
+            sender_id=self.id,
+            content=content,
+            confidence_level=confidence_level,
+        )
+        
+        await self.outbound_queue.put(message)
+        logger.info(f"Agent {self.id} reported confidence level {confidence_level}/10 for task '{task_name}'")
+    
     async def receive_message(self, message: Message) -> None:
         """Receive a message from another agent into the inbound queue."""
         await self.inbound_queue.put(message)
@@ -165,6 +198,12 @@ class Agent(ABC):
             "inbound_queue_size": self.inbound_queue.qsize(),
             "outbound_queue_size": self.outbound_queue.qsize(),
         }
+    
+    def get_last_confidence_level(self) -> Optional[int]:
+        """Get the last reported confidence level for this agent."""
+        # This is a placeholder - in a real implementation, this would retrieve 
+        # the last confidence level from agent state or storage
+        return None
     
     async def _process_messages(self) -> None:
         """Process messages from the inbound queue."""

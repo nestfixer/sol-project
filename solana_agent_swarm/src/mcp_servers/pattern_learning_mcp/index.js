@@ -15,6 +15,7 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PatternDetector, PATTERN_TYPES } from './pattern_algorithms.js';
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +27,7 @@ const __dirname = path.dirname(__filename);
 // Constants
 const PATTERNS_DB_PATH = path.join(__dirname, 'patterns_db.json');
 const BLACKLIST_DB_PATH = path.join(__dirname, 'blacklist_db.json');
+const HISTORICAL_DATA_PATH = path.join(__dirname, 'historical_data');
 
 class PatternLearningMCP {
   constructor() {
@@ -55,6 +57,9 @@ class PatternLearningMCP {
       tokens: [],
       lastUpdated: Date.now()
     };
+
+    // Initialize advanced pattern detector
+    this.patternDetector = new PatternDetector();
 
     // Load existing data
     this.loadDatabases();
@@ -103,6 +108,14 @@ class PatternLearningMCP {
           await fs.mkdir(path.dirname(BLACKLIST_DB_PATH), { recursive: true });
           await this.saveBlacklistDb();
         }
+      }
+
+      // Create historical data directory if it doesn't exist
+      try {
+        await fs.mkdir(HISTORICAL_DATA_PATH, { recursive: true });
+        console.error(`Ensured historical data directory exists at ${HISTORICAL_DATA_PATH}`);
+      } catch (err) {
+        console.error('Error creating historical data directory:', err);
       }
     } catch (error) {
       console.error('Error initializing databases:', error);
@@ -253,6 +266,37 @@ class PatternLearningMCP {
             required: ['pattern_id', 'token_address', 'accuracy'],
           },
         },
+        {
+          name: 'backtest_pattern',
+          description: 'Backtest a pattern against historical token data',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              token_address: {
+                type: 'string',
+                description: 'Solana token address to backtest against',
+              },
+              pattern_type: {
+                type: 'string',
+                description: 'Pattern type to backtest',
+                enum: Object.values(PATTERN_TYPES),
+              },
+              confidence_threshold: {
+                type: 'number',
+                description: 'Minimum confidence level to trigger a trade (0-1)',
+              },
+              profit_target: {
+                type: 'number',
+                description: 'Target profit percentage (0-1)',
+              },
+              stop_loss: {
+                type: 'number',
+                description: 'Stop loss percentage (0-1)',
+              },
+            },
+            required: ['token_address', 'pattern_type'],
+          },
+        }
       ],
     }));
 
@@ -280,6 +324,15 @@ class PatternLearningMCP {
             break;
           case 'provide_pattern_feedback':
             result = await this.providePatternFeedback(args.pattern_id, args.token_address, args.accuracy, args.comments);
+            break;
+          case 'backtest_pattern':
+            result = await this.backtestPattern(
+              args.token_address, 
+              args.pattern_type, 
+              args.confidence_threshold || 0.7,
+              args.profit_target || 0.1,
+              args.stop_loss || 0.05
+            );
             break;
           default:
             throw new McpError(
@@ -311,48 +364,105 @@ class PatternLearningMCP {
     });
   }
 
+  async fetchHistoricalData(tokenAddress, timePeriod) {
+    // In a production system, this would fetch real data from APIs
+    // For demo purposes, we generate simulated historical data
+    
+    const dataPoints = {
+      '24h': 24,
+      '7d': 168,
+      '30d': 720
+    }[timePeriod] || 168; // Default to 7d (168 hours)
+    
+    const timestamps = [];
+    const prices = [];
+    const volumes = [];
+    
+    const now = Date.now();
+    const basePrice = 100 + (Math.random() * 900); // $100-$1000
+    const hourMs = 60 * 60 * 1000;
+    
+    // Generate timestamps and price/volume data with some realistic patterns
+    for (let i = 0; i < dataPoints; i++) {
+      const timestamp = new Date(now - (dataPoints - i) * hourMs).toISOString();
+      timestamps.push(timestamp);
+      
+      // Create some volatility and trends in the price
+      const noiseLevel = basePrice * 0.03; // 3% noise
+      const trendComponent = Math.sin(i / 24) * basePrice * 0.1; // Cyclical trend component
+      const randomWalk = (Math.random() - 0.5) * noiseLevel; // Random walk component
+      
+      // Previous price or base price for first point
+      const prevPrice = i > 0 ? prices[i-1] : basePrice;
+      const price = prevPrice + randomWalk + (trendComponent - (prevPrice - basePrice) * 0.01);
+      prices.push(Math.max(price, basePrice * 0.5)); // Ensure price doesn't go too low
+      
+      // Volume that correlates somewhat with price movements
+      const baseVolume = 1000000 + (Math.random() * 9000000); // 1M-10M
+      const priceChange = i > 0 ? Math.abs(price - prices[i-1]) / prices[i-1] : 0;
+      const volumeBoost = priceChange * baseVolume * 10; // More volume on bigger price movements
+      volumes.push(baseVolume + volumeBoost);
+    }
+    
+    // Store data in file for reuse (particularly for backtesting)
+    try {
+      const dataObj = { tokenAddress, timePeriod, timestamps, prices, volumes, generatedAt: now };
+      const historicalDataFile = path.join(HISTORICAL_DATA_PATH, `${tokenAddress}_${timePeriod}.json`);
+      await fs.writeFile(historicalDataFile, JSON.stringify(dataObj, null, 2));
+    } catch (error) {
+      console.error(`Failed to save historical data: ${error.message}`);
+      // Non-fatal, continue with in-memory data
+    }
+    
+    return { timestamps, prices, volumes };
+  }
+
   async analyzeTokenPattern(tokenAddress, timePeriod = '7d') {
     try {
-      // In a real implementation, this would fetch historical data from APIs
-      // and apply advanced pattern recognition algorithms
+      console.error(`Analyzing patterns for token ${tokenAddress} over ${timePeriod}`);
       
-      // For this demo, we'll generate a simplified pattern analysis
-      const patterns = [];
+      // Fetch historical data (in production, this would be from an API)
+      const historicalData = await this.fetchHistoricalData(tokenAddress, timePeriod);
       
-      // Check if we already have patterns for this token
-      if (this.patternsDb.tokenPatterns[tokenAddress]) {
-        patterns.push(...this.patternsDb.tokenPatterns[tokenAddress]);
+      // Use our advanced pattern detector to find patterns
+      const analysisResult = this.patternDetector.detectPatterns(historicalData, timePeriod);
+      
+      // Store detected patterns in our database
+      if (analysisResult.patterns && analysisResult.patterns.length > 0) {
+        // If we don't have patterns for this token yet, initialize the array
+        if (!this.patternsDb.tokenPatterns[tokenAddress]) {
+          this.patternsDb.tokenPatterns[tokenAddress] = [];
+        }
+        
+        // Add new patterns, avoiding duplicates
+        const existingIds = this.patternsDb.tokenPatterns[tokenAddress].map(p => p.id);
+        const newPatterns = analysisResult.patterns.filter(p => !existingIds.includes(p.id));
+        
+        this.patternsDb.tokenPatterns[tokenAddress].push(...newPatterns);
+        
+        // Keep only the 10 most recent patterns
+        if (this.patternsDb.tokenPatterns[tokenAddress].length > 10) {
+          this.patternsDb.tokenPatterns[tokenAddress].sort((a, b) => 
+            new Date(b.detected_at || 0).getTime() - new Date(a.detected_at || 0).getTime()
+          );
+          this.patternsDb.tokenPatterns[tokenAddress] = this.patternsDb.tokenPatterns[tokenAddress].slice(0, 10);
+        }
+        
+        // Update our database
+        await this.savePatternsDb();
       }
       
-      // Add a new pattern (simulated discovery)
-      const patternTypes = ['breakout', 'accumulation', 'distribution', 'consolidation', 'pump_dump'];
-      const newPattern = {
-        id: `pattern_${Date.now()}`,
-        type: patternTypes[Math.floor(Math.random() * patternTypes.length)],
-        confidence: Math.random() * 0.5 + 0.5, // 0.5 to 1.0
-        timeframe: timePeriod,
-        detected_at: new Date().toISOString(),
-        description: this.generatePatternDescription(patternTypes[Math.floor(Math.random() * patternTypes.length)]),
-        indicators: {
-          volume_change: (Math.random() * 200 - 100).toFixed(2) + '%', // -100% to +100%
-          price_change: (Math.random() * 200 - 100).toFixed(2) + '%', // -100% to +100%
-          holder_change: (Math.random() * 50 - 25).toFixed(2) + '%', // -25% to +25%
-        }
-      };
+      // Sort patterns by confidence (highest first)
+      const sortedPatterns = [...(analysisResult.patterns || [])].sort((a, b) => b.confidence - a.confidence);
       
-      patterns.push(newPattern);
-      
-      // Store in our database
-      this.patternsDb.tokenPatterns[tokenAddress] = patterns;
-      await this.savePatternsDb();
-      
-      // Return the analysis
+      // Return the analysis result
       return {
         token_address: tokenAddress,
         time_period: timePeriod,
-        patterns,
-        analysis_summary: `Found ${patterns.length} patterns for this token in the ${timePeriod} timeframe.`,
-        highest_confidence_pattern: patterns.sort((a, b) => b.confidence - a.confidence)[0]
+        patterns: sortedPatterns,
+        analysis_summary: analysisResult.message || `Found ${sortedPatterns.length} patterns for this token in the ${timePeriod} timeframe.`,
+        highest_confidence_pattern: sortedPatterns.length > 0 ? sortedPatterns[0] : null,
+        analysis_performed_at: new Date().toISOString()
       };
     } catch (error) {
       console.error('Error analyzing token pattern:', error);
@@ -360,53 +470,83 @@ class PatternLearningMCP {
     }
   }
 
-  generatePatternDescription(patternType) {
-    const descriptions = {
-      breakout: 'The token is showing signs of breaking out from a consolidation period, with increasing volume supporting the price action.',
-      accumulation: 'There appears to be systematic accumulation occurring, with large buys being absorbed without significant price increases.',
-      distribution: 'The token shows signs of distribution, with selling pressure increasing and larger holders reducing positions.',
-      consolidation: 'The token is in a period of low volatility and volume, often preceding a significant price move.',
-      pump_dump: 'The token exhibits rapid price increase followed by rapid selling, characteristic of coordinated pump and dump activity.'
-    };
-    
-    return descriptions[patternType] || 'Unrecognized pattern detected in price and volume activity.';
-  }
-
   async getPricePrediction(tokenAddress, timeHorizon = '24h') {
     try {
-      // This would use the detected patterns and machine learning models
-      // to generate a price prediction
+      console.error(`Generating price prediction for token ${tokenAddress} with horizon ${timeHorizon}`);
       
-      // For this demo, we'll create a simplified prediction
+      // Use the longest time period to analyze patterns
+      const timePeriod = '30d';
+      
+      // First, analyze patterns for this token
+      const analysis = await this.analyzeTokenPattern(tokenAddress, timePeriod);
+      
+      // Fetch the historical data
+      const historicalData = await this.fetchHistoricalData(tokenAddress, timePeriod);
+      
+      // Get the most recent price as our starting point
+      const currentPrice = historicalData.prices[historicalData.prices.length - 1] || 100;
       let confidenceScore = 0.7; // Base confidence
+      let predictedPriceChange = 0; // Default to no change
       
-      // If we have patterns for this token, adjust confidence based on them
-      if (this.patternsDb.tokenPatterns[tokenAddress]) {
-        const patterns = this.patternsDb.tokenPatterns[tokenAddress];
-        if (patterns.length > 0) {
-          // Use the highest confidence pattern
-          const bestPattern = patterns.sort((a, b) => b.confidence - a.confidence)[0];
-          confidenceScore = bestPattern.confidence;
+      // Calculate prediction based on detected patterns
+      if (analysis.patterns && analysis.patterns.length > 0) {
+        // Find the highest confidence pattern
+        const bestPattern = analysis.patterns[0]; // Already sorted by confidence
+        confidenceScore = bestPattern.confidence;
+        
+        // Different predictions based on pattern type
+        switch(bestPattern.type) {
+          case PATTERN_TYPES.ACCUMULATION:
+            // Accumulation typically leads to upward price movement
+            predictedPriceChange = 0.1 + (Math.random() * 0.1); // 10-20% increase
+            break;
+          case PATTERN_TYPES.DISTRIBUTION:
+            // Distribution typically leads to downward price movement
+            predictedPriceChange = -0.1 - (Math.random() * 0.1); // 10-20% decrease
+            break;
+          case PATTERN_TYPES.BREAKOUT:
+            // Breakouts typically lead to strong upward movement
+            predictedPriceChange = 0.15 + (Math.random() * 0.15); // 15-30% increase
+            break;
+          case PATTERN_TYPES.BREAKDOWN:
+            // Breakdowns typically lead to strong downward movement
+            predictedPriceChange = -0.15 - (Math.random() * 0.15); // 15-30% decrease
+            break;
+          case PATTERN_TYPES.PUMP_DUMP:
+            // Pump and dump typically means a crash is coming
+            predictedPriceChange = -0.2 - (Math.random() * 0.2); // 20-40% decrease
+            break;
+          case PATTERN_TYPES.CONSOLIDATION:
+            // Consolidation typically means minimal price movement
+            predictedPriceChange = (Math.random() * 0.1) - 0.05; // -5% to +5%
+            break;
+          default:
+            // Default case - small random movement
+            predictedPriceChange = (Math.random() * 0.2) - 0.1; // -10% to +10%
         }
+        
+        // Adjust confidence based on horizon - longer predictions are less certain
+        if (timeHorizon === '7d') {
+          confidenceScore *= 0.9; // 10% reduction
+        }
+      } else {
+        // Without patterns, we make a less confident prediction
+        predictedPriceChange = (Math.random() * 0.2) - 0.1; // -10% to +10%
+        confidenceScore *= 0.8; // 20% reduction in confidence
       }
       
-      // Generate prediction values
-      const currentPrice = 100 + (Math.random() * 900); // $100 - $1000
-      const priceChange = (Math.random() * 60) - 30; // -30% to +30%
-      const predictedPrice = currentPrice * (1 + (priceChange / 100));
-      
-      // Direction based on price change
-      const direction = priceChange > 0 ? 'bullish' : 'bearish';
+      const predictedPrice = currentPrice * (1 + predictedPriceChange);
+      const direction = predictedPriceChange > 0 ? 'bullish' : (predictedPriceChange < 0 ? 'bearish' : 'neutral');
       
       return {
         token_address: tokenAddress,
         time_horizon: timeHorizon,
         current_price: `$${currentPrice.toFixed(2)}`,
         predicted_price: `$${predictedPrice.toFixed(2)}`,
-        price_change: `${priceChange.toFixed(2)}%`,
+        price_change: `${(predictedPriceChange * 100).toFixed(2)}%`,
         confidence: confidenceScore,
         direction,
-        supporting_patterns: this.patternsDb.tokenPatterns[tokenAddress] || [],
+        supporting_patterns: analysis.patterns || [],
         prediction_made_at: new Date().toISOString(),
         disclaimer: 'This prediction is for educational purposes only. Do not make investment decisions based solely on this information.'
       };
@@ -418,42 +558,88 @@ class PatternLearningMCP {
 
   async detectMarketPatterns(patternType = 'all', minConfidence = 0.7) {
     try {
-      // In a real implementation, this would scan across tokens
-      // to identify common patterns emerging in the market
+      console.error(`Detecting market patterns of type ${patternType} with min confidence ${minConfidence}`);
       
-      // For this demo, we'll generate some simulated market patterns
+      // In a real implementation, this would scan across multiple tokens
+      // For demo, we'll create a list of simulated tokens and analyze each
+      const demoTokens = [
+        { address: 'SIMULATED_TOKEN_1', name: 'Demo Token 1' },
+        { address: 'SIMULATED_TOKEN_2', name: 'Demo Token 2' },
+        { address: 'SIMULATED_TOKEN_3', name: 'Demo Token 3' },
+        { address: 'SIMULATED_TOKEN_4', name: 'Demo Token 4' },
+        { address: 'SIMULATED_TOKEN_5', name: 'Demo Token 5' }
+      ];
+      
+      // Analyze each token for patterns
+      const tokenPatterns = [];
+      for (const token of demoTokens) {
+        const data = await this.fetchHistoricalData(token.address, '7d');
+        const analysis = this.patternDetector.detectPatterns(data, '7d');
+        
+        // Filter by pattern type and confidence
+        let filteredPatterns = analysis.patterns || [];
+        if (patternType !== 'all') {
+          filteredPatterns = filteredPatterns.filter(p => p.type.toLowerCase() === patternType.toLowerCase());
+        }
+        filteredPatterns = filteredPatterns.filter(p => p.confidence >= minConfidence);
+        
+        if (filteredPatterns.length > 0) {
+          tokenPatterns.push({
+            token: token.address,
+            tokenName: token.name,
+            patterns: filteredPatterns
+          });
+        }
+      }
+      
+      // Check for market-wide patterns
+      // These would be similar patterns occurring across multiple tokens
       const marketPatterns = [];
       
-      // Types of market patterns we might detect
-      const patternTypes = ['sector_rotation', 'market_exhaustion', 'liquidity_gap', 'volume_divergence'];
+      // Pattern counts by type
+      const patternCounts = {};
+      tokenPatterns.forEach(tp => {
+        tp.patterns.forEach(p => {
+          if (!patternCounts[p.type]) patternCounts[p.type] = 0;
+          patternCounts[p.type]++;
+        });
+      });
       
-      // If specific pattern type requested and it's not 'all', filter to that type
-      const patternsToGenerate = patternType === 'all' 
-        ? patternTypes 
-        : patternTypes.filter(p => p === patternType);
-      
-      // Generate 1-3 patterns
-      const numPatterns = Math.floor(Math.random() * 3) + 1;
-      
-      for (let i = 0; i < numPatterns; i++) {
-        const type = patternsToGenerate[Math.floor(Math.random() * patternsToGenerate.length)];
-        const confidence = (Math.random() * 0.3) + 0.7; // 0.7 to 1.0
-        
-        // Only include if it meets minimum confidence
-        if (confidence >= minConfidence) {
+      // If more than 2 tokens show the same pattern, it might be a market pattern
+      for (const [type, count] of Object.entries(patternCounts)) {
+        if (count >= 2) {
+          // Calculate average confidence
+          let totalConfidence = 0;
+          let patternCount = 0;
+          const affectedTokens = [];
+          
+          tokenPatterns.forEach(tp => {
+            tp.patterns.forEach(p => {
+              if (p.type === type) {
+                totalConfidence += p.confidence;
+                patternCount++;
+                affectedTokens.push({
+                  token: tp.token,
+                  tokenName: tp.tokenName,
+                  confidence: p.confidence
+                });
+              }
+            });
+          });
+          
+          const avgConfidence = totalConfidence / patternCount;
+          
+          // Map pattern type to market pattern type
+          const marketPatternType = this.mapToMarketPatternType(type);
+          
           marketPatterns.push({
-            id: `market_pattern_${Date.now()}_${i}`,
-            type,
-            confidence,
+            id: `market_pattern_${Date.now()}_${type}`,
+            type: marketPatternType,
+            confidence: avgConfidence,
             detected_at: new Date().toISOString(),
-            description: this.generateMarketPatternDescription(type),
-            affected_tokens: [
-              // Simulated tokens that show this pattern
-              {token: 'Token1', confidence: (Math.random() * 0.2) + 0.8},
-              {token: 'Token2', confidence: (Math.random() * 0.2) + 0.8},
-              {token: 'Token3', confidence: (Math.random() * 0.2) + 0.8}
-            ],
-            suggested_action: this.generateActionForPattern(type)
+            description: this.generateMarketPatternDescription(marketPatternType),
+            affected_tokens: affectedTokens,
+            suggested_action: this.generateActionForPattern(marketPatternType)
           });
         }
       }
@@ -462,6 +648,9 @@ class PatternLearningMCP {
         pattern_type: patternType,
         min_confidence: minConfidence,
         detected_patterns: marketPatterns,
+        tokens_analyzed: demoTokens.length,
+        tokens_with_patterns: tokenPatterns.length,
+        token_details: tokenPatterns,
         analysis_time: new Date().toISOString(),
         summary: `Detected ${marketPatterns.length} market patterns with confidence >= ${minConfidence}.`
       };
@@ -471,12 +660,26 @@ class PatternLearningMCP {
     }
   }
 
+  mapToMarketPatternType(patternType) {
+    // Map individual token patterns to market-wide patterns
+    const mapping = {
+      [PATTERN_TYPES.ACCUMULATION]: 'sector_rotation',
+      [PATTERN_TYPES.DISTRIBUTION]: 'market_exhaustion',
+      [PATTERN_TYPES.BREAKOUT]: 'liquidity_gap',
+      [PATTERN_TYPES.CONSOLIDATION]: 'volume_divergence',
+      [PATTERN_TYPES.PUMP_DUMP]: 'pump_dump_wave'
+    };
+    
+    return mapping[patternType] || 'general_market_trend';
+  }
+
   generateMarketPatternDescription(patternType) {
     const descriptions = {
       sector_rotation: 'Capital appears to be moving from one token sector to another, indicating changing market sentiment or catalyst events.',
       market_exhaustion: 'Multiple tokens showing signs of buyer/seller exhaustion, suggesting a potential market reversal.',
       liquidity_gap: 'Significant liquidity imbalances detected across multiple tokens, creating potential price gaps.',
-      volume_divergence: 'Volume profiles across multiple tokens show divergence from price action, suggesting potential market inefficiencies.'
+      volume_divergence: 'Volume profiles across multiple tokens show divergence from price action, suggesting potential market inefficiencies.',
+      pump_dump_wave: 'Multiple tokens showing coordinated pump and dump activities, indicating potential market manipulation.'
     };
     
     return descriptions[patternType] || 'Unspecified market-wide pattern detected across multiple tokens.';
@@ -487,7 +690,8 @@ class PatternLearningMCP {
       sector_rotation: 'Consider repositioning to capitalize on the emerging sector strength.',
       market_exhaustion: 'Exercise caution and consider reducing exposure until direction clarifies.',
       liquidity_gap: 'Watch for potential rapid price moves as markets seek to fill liquidity gaps.',
-      volume_divergence: 'Monitor for potential reversals as price and volume return to alignment.'
+      volume_divergence: 'Monitor for potential reversals as price and volume return to alignment.',
+      pump_dump_wave: 'Exercise extreme caution and avoid chasing pumps that lack fundamental backing.'
     };
     
     return actions[patternType] || 'Monitor the situation closely for further developments.';
@@ -579,65 +783,5 @@ class PatternLearningMCP {
     }
   }
 
-  async providePatternFeedback(patternId, tokenAddress, accuracy, comments) {
+  async providePatternFeedback(patternId, tokenAddress, accuracy, comments = '') {
     try {
-      // In a real implementation, this would update pattern detection algorithms
-      // based on whether predictions were accurate
-      
-      // For now, log the feedback and store it with the pattern
-      console.error(`Received feedback for pattern ${patternId}: accuracy=${accuracy}, comments=${comments || 'none'}`);
-      
-      // Find the pattern
-      let pattern = null;
-      if (this.patternsDb.tokenPatterns[tokenAddress]) {
-        pattern = this.patternsDb.tokenPatterns[tokenAddress].find(p => p.id === patternId);
-      }
-      
-      if (!pattern) {
-        return {
-          success: false,
-          message: `Pattern ${patternId} not found for token ${tokenAddress}`
-        };
-      }
-      
-      // Add feedback to pattern
-      if (!pattern.feedback) {
-        pattern.feedback = [];
-      }
-      
-      pattern.feedback.push({
-        accuracy,
-        comments,
-        provided_at: new Date().toISOString()
-      });
-      
-      // Adjust pattern confidence based on feedback
-      // Simple weighted average approach for demo
-      const allFeedback = pattern.feedback.map(f => f.accuracy);
-      allFeedback.push(pattern.confidence); // Include original confidence
-      
-      pattern.confidence = allFeedback.reduce((sum, val) => sum + val, 0) / allFeedback.length;
-      
-      // Save updated patterns
-      await this.savePatternsDb();
-      
-      return {
-        success: true,
-        message: 'Feedback recorded and pattern confidence updated',
-        updated_pattern: pattern
-      };
-    } catch (error) {
-      console.error('Error providing pattern feedback:', error);
-      throw new Error(`Failed to provide pattern feedback: ${error.message}`);
-    }
-  }
-
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('Pattern Learning MCP server running on stdio');
-  }
-}
-
-const server = new PatternLearningMCP();
-server.run().catch(console.error);

@@ -116,6 +116,13 @@ This file captures important patterns, preferences, and project intelligence tha
    - Update agent status to reflect error conditions
    - Propagate errors through message system when appropriate
 
+4. **Confidence Level Reporting**
+   - Use the `send_confidence_report` method after completing significant tasks
+   - Always provide a confidence score on the 1-10 scale (10 being highest confidence)
+   - Include task name for clear identification and tracking
+   - Add detailed context in the optional details parameter when relevant
+   - The method handles validation and logging automatically
+
 ### Project-Specific Conventions
 
 1. **Agent Implementation**
@@ -129,6 +136,7 @@ This file captures important patterns, preferences, and project intelligence tha
    - Use appropriate `MessageType` enum values
    - Include correlation IDs for request/response tracking
    - Set appropriate priority levels (1-10)
+   - Include confidence levels for analysis results (1-10)
 
 3. **Knowledge Base Interaction**
    - All token data should be stored in the knowledge base
@@ -143,6 +151,7 @@ This file captures important patterns, preferences, and project intelligence tha
    - Handle transitions between states gracefully
    - Clean up resources during stop operations
    - Report status changes to orchestrator
+   - Report confidence levels after completing tasks
 
 2. **Message Processing**
    - Messages processed in priority order
@@ -163,6 +172,7 @@ This file captures important patterns, preferences, and project intelligence tha
    - Watch for memory growth in the knowledge base
    - Handle WebSocket disconnections gracefully
    - Ensure message queues don't grow unbounded
+   - Always include confidence levels when reporting analysis results
 
 2. **Performance Considerations**
    - Batch blockchain RPC requests when possible
@@ -183,6 +193,14 @@ This file captures important patterns, preferences, and project intelligence tha
    - Include context information in log messages
    - Log message IDs for tracing request flows
    - Enable debug logging selectively for specific components
+   - Check confidence level logs to identify low-confidence analyses
+
+2. **Confidence Level Guidelines**
+   - 9-10: High confidence based on strong patterns and comprehensive data
+   - 7-8: Good confidence with clear signals but some uncertainties
+   - 5-6: Moderate confidence with mixed signals
+   - 3-4: Low confidence with significant uncertainties
+   - 1-2: Very low confidence, highly speculative or based on minimal data
 
 2. **Common Issues**
    - Agents not receiving messages: Check registration with orchestrator
