@@ -202,14 +202,102 @@ This file captures important patterns, preferences, and project intelligence tha
    - 3-4: Low confidence with significant uncertainties
    - 1-2: Very low confidence, highly speculative or based on minimal data
 
-2. **Common Issues**
+3. **Common Issues**
    - Agents not receiving messages: Check registration with orchestrator
    - System appears to hang: Look for blocked async operations
    - High error rates: Check Solana RPC connectivity
    - Inconsistent results: Verify knowledge base queries
 
-3. **Development Tools**
+4. **Development Tools**
    - Use CLI's debug commands for agent inspection
    - Monitor agent status metrics for health checks
    - Examine message queues for processing bottlenecks
    - Check task registry for stuck operations
+
+## Project Roadmap Implementation Guidelines
+
+### Additional Blockchain Data Collection
+
+1. **Smart Contract Analysis Implementation**
+   - Use decompilers for BPF programs (Solana's bytecode)
+   - Scan for known vulnerability patterns
+   - Compare against reference implementation patterns
+   - Track authority changes and upgradability status
+
+2. **Enhanced Token Metrics Collection**
+   - Query multiple DEXs for comprehensive liquidity data
+   - Establish baselines for holder distribution to detect anomalies
+   - Tag known team/treasury wallets for special monitoring
+   - Monitor cross-chain bridges for wrapped token tracking
+
+### New Tools & Libraries Integration
+
+1. **Machine Learning Framework Best Practices**
+   - Use TensorFlow.js for browser-compatible models
+   - Implement scikit-learn for statistical analysis in Python components
+   - Consider PyTorch for advanced pattern recognition
+   - Separate model training from inference pipelines
+
+2. **Solana Ecosystem Integration Patterns**
+   - Use Helius API for enriched transaction data
+   - Leverage Jupiter for DEX aggregation and price discovery
+   - Implement Switchboard for reliable price feeds
+   - Use dedicated SPL interfaces for token standard compliance
+
+3. **Visualization Tool Integration**
+   - Implement D3.js for custom, interactive visualizations
+   - Use ECharts for financial pattern visualization
+   - Consider TradingView for familiar trading interfaces
+   - Keep visualization code separate from data processing
+
+### Testing & Iteration Strategy
+
+1. **Simulated Environment Setup**
+   - Create historical data replay capability with consistent format
+   - Build scenario generator for edge cases
+   - Implement corpus of known patterns with labels
+   - Support time-compression for accelerated testing
+
+2. **Testnet Deployment Guidelines**
+   - Use separate configuration for testnet vs. mainnet
+   - Create test tokens with specific characteristics
+   - Document test scenarios in a structured format
+   - Implement automated verification of expected outcomes
+
+3. **Metrics Collection Framework**
+   - Define key performance indicators for each component
+   - Implement structured logging for metric extraction
+   - Create dashboards for real-time monitoring
+   - Establish baselines for comparison
+
+4. **A/B Testing Methodology**
+   - Run parallel algorithm versions with shared input
+   - Compare outputs using predefined evaluation criteria
+   - Implement statistical significance testing
+   - Document findings and justifications for algorithm selection
+
+### Production Architecture Guidelines
+
+1. **Horizontal Scaling Implementation**
+   - Design stateless components where possible
+   - Implement work distribution mechanisms
+   - Use consistent hashing for deterministic routing
+   - Consider containerization for deployment flexibility
+
+2. **Database Persistence Strategy**
+   - Use time-series database for historical data
+   - Implement document store for token metadata
+   - Consider key-value store for high-throughput data
+   - Create clear data retention and pruning policies
+
+3. **Cross-Language Communication Standards**
+   - Define schema using Protocol Buffers or similar
+   - Implement versioning for all message types
+   - Create comprehensive error mapping between languages
+   - Build validation on both sides of language boundary
+
+4. **Caching Implementation**
+   - Use tiered caching strategy (memory → disk → network)
+   - Implement cache invalidation based on data type
+   - Consider distributed caching for clustered deployment
+   - Monitor cache hit rates and optimize accordingly

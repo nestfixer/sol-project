@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Solana Token Analysis Agent Swarm</title>
+  <meta name="description" content="AI-powered system for analyzing Solana tokens, detecting patterns, assessing risks, and identifying investment opportunities in real-time.">
+  
+  <!-- Tailwind CSS from CDN for development (in production would be bundled) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cGF0aCBkPSJNMzIgOTZIOTZMMzIgMzJWOTZaIiBmaWxsPSIjOTk0NUZGIiAvPjxwYXRoIGQ9Ik05NiAzMkgzMkw5NiA5NlYzMloiIGZpbGw9IiM5OTQ1RkYiIC8+PC9zdmc+" />
+  
+  <!-- Custom styles -->
+  <style>
+    /* Loading spinner */
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #9945FF; /* Solana purple */
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 40px auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Initial loading state */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #111827; /* gray-900 */
+      color: white;
+      z-index: 1000;
+      transition: opacity 0.5s ease-out;
+    }
+    
+    .loaded #loading {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white">
+  <!-- Initial loading screen -->
+  <div id="loading">
+    <svg width="80" height="80" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 96H96L32 32V96Z" fill="#9945FF" />
+      <path d="M96 32H32L96 96V32Z" fill="#9945FF" />
+    </svg>
+    <div class="spinner mt-6"></div>
+    <div class="mt-4 text-xl">Loading Solana Token Analysis</div>
+  </div>
+  
+  <!-- Root element for React app -->
+  <div id="root"></div>
+  
+  <!-- Scripts -->
+  <script>
+    // Simple loading screen handler
+    window.addEventListener('load', function() {
+      document.body.classList.add('loaded');
+      
+      // Remove loading screen after transition completes
+      setTimeout(function() {
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) {
+          loadingEl.parentNode.removeChild(loadingEl);
+        }
+      }, 500);
+    });
+  </script>
+  
+  <!-- For development with a bundler like Vite, Webpack, etc. -->
+  <script type="module" src="index.js"></script>
+</body>
+</html>

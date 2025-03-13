@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "switchboard-oracle": {
+      "command": "node",
+      "args": ["src/mcp_servers/switchboard_mcp_server.js"],
+      "env": {
+        "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

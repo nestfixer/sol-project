@@ -785,3 +785,33 @@ class PatternLearningMCP {
 
   async providePatternFeedback(patternId, tokenAddress, accuracy, comments = '') {
     try {
+      // Find the pattern in the database
+      const tokenPatterns = this.patternsDb.tokenPatterns[tokenAddress] || [];
+      const pattern = tokenPatterns.find(p => p.id === patternId);
+      
+      if (!pattern) {
+        throw new Error(`Pattern with ID ${patternId} not found for token ${tokenAddress}`);
+      }
+      
+      // Update the pattern with feedback
+      pattern.accuracy = accuracy;
+      pattern.feedback = {
+        ...(pattern.feedback || {}),
+        comments: comments,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Save the updated database
+      await this.savePatternsDb();
+      
+      return {
+        success: true,
+        message: `Feedback provided for pattern ${patternId} on token ${tokenAddress}`,
+        pattern: pattern
+      };
+    } catch (error) {
+      console.error('Error providing pattern feedback:', error);
+      throw new Error(`Failed to provide pattern feedback: ${error.message}`);
+    }
+  }
+}

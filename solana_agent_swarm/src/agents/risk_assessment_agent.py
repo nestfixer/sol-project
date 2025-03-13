@@ -2,6 +2,8 @@
 Risk Assessment Agent for the Solana Token Analysis Agent Swarm.
 Evaluates token risks, contract safety, developer history, and
 liquidity to identify potential scams and risky investments.
+Features enhanced contract vulnerability detection, cross-chain risk analysis,
+and comprehensive liquidity health scoring.
 """
 
 import asyncio
@@ -26,6 +28,10 @@ class RiskFactorType:
     TOKEN_AGE = "token_age"
     TRANSACTION_PATTERNS = "transaction_patterns"
     SOCIAL_SIGNALS = "social_signals"
+    PROGRAM_VULNERABILITY = "program_vulnerability"
+    CROSS_CHAIN_RISK = "cross_chain_risk"
+    LIQUIDITY_FRAGILITY = "liquidity_fragility"
+    TREASURY_ACTIVITY = "treasury_activity"
 
 
 class RiskLevel:
@@ -360,14 +366,14 @@ class RiskAssessmentAgent(Agent):
         force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
-        Assess risk for a specific token.
+        Assess risk for a specific token with enhanced analysis capabilities.
         
         Args:
             token_address: The token's address.
             force_refresh: Whether to force a risk re-assessment.
             
         Returns:
-            Risk assessment result.
+            Comprehensive risk assessment result with detailed vulnerability analysis.
         """
         # Check if we have recently assessed this token
         current_time = time.time()
@@ -431,16 +437,25 @@ class RiskAssessmentAgent(Agent):
             # Assess various risk factors
             risk_factors = []
             
-            # 1. Contract risk (we'll use a placeholder since this would normally involve
-            # more complex contract analysis)
+            # 1. Contract vulnerabilities risk using the enhanced data
             contract_risk = await self._assess_contract_risk(token_data)
             if contract_risk:
                 risk_factors.append(contract_risk)
             
-            # 2. Liquidity risk
+            # 2. Program vulnerability risk (new)
+            program_risk = await self._assess_program_vulnerability(token_data)
+            if program_risk:
+                risk_factors.append(program_risk)
+            
+            # 3. Enhanced liquidity risk assessment
             liquidity_risk = await self._assess_liquidity_risk(token_data)
             if liquidity_risk:
                 risk_factors.append(liquidity_risk)
+            
+            # 4. Liquidity fragility risk (new)
+            fragility_risk = await self._assess_liquidity_fragility(token_data)
+            if fragility_risk:
+                risk_factors.append(fragility_risk)
             
             # 3. Owner concentration risk
             concentration_risk = await self._assess_concentration_risk(token_data)
@@ -521,72 +536,184 @@ class RiskAssessmentAgent(Agent):
     
     async def _assess_contract_risk(self, token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Assess contract security risks.
+        Assess contract security risks using enhanced analysis.
         
         Args:
-            token_data: Token data including contract info.
+            token_data: Token data including contract_analysis from ContractAnalyzer.
             
         Returns:
-            Risk factor data if significant risk is detected, None otherwise.
+            Detailed risk factor data if significant risk is detected, None otherwise.
         """
-        # In a real implementation, this would involve analyzing the contract code
-        # for security vulnerabilities, backdoors, ownership control, etc.
-        # For this example, we'll use placeholder logic
-        
-        # Placeholder contract risk score (0.0 to 1.0, where 1.0 is highest risk)
-        # In a real implementation, this would come from contract analysis
-        risk_score = 0.2  # Just for example
-        
-        # Determine risk level
-        if risk_score >= 0.75:
-            risk_level = RiskLevel.CRITICAL
-        elif risk_score >= 0.5:
-            risk_level = RiskLevel.HIGH
-        elif risk_score >= 0.25:
+        # Check if we have contract analysis data
+        contract_analysis = token_data.get("contract_analysis", {})
+        if not contract_analysis:
+            # Fallback to generic risk assessment if no data
+            risk_score = 0.5  # Medium risk due to lack of data
             risk_level = RiskLevel.MEDIUM
+            details = "Unable to analyze contract code - insufficient data"
         else:
-            risk_level = RiskLevel.LOW
+            # Extract vulnerability info from analysis
+            detected_vulnerabilities = contract_analysis.get("detected_vulnerabilities", {})
+            vulnerability_score = contract_analysis.get("vulnerability_score", 0.5)
+            
+            # Create details message with specific vulnerabilities
+            if detected_vulnerabilities:
+                vulnerability_details = []
+                for vuln_type, instances in detected_vulnerabilities.items():
+                    vulnerability_details.append(f"{vuln_type}: {len(instances)} instances detected")
+                details = "Contract analysis found: " + ", ".join(vulnerability_details)
+            else:
+                details = "No specific vulnerabilities detected in contract analysis"
+            
+            # Use vulnerability score from analysis
+            risk_score = vulnerability_score
+            
+            # Determine risk level
+            if risk_score >= 0.75:
+                risk_level = RiskLevel.CRITICAL
+            elif risk_score >= 0.5:
+                risk_level = RiskLevel.HIGH
+            elif risk_score >= 0.25:
+                risk_level = RiskLevel.MEDIUM
+            else:
+                risk_level = RiskLevel.LOW
+            
+            # Add info about upgradeability which increases risk
+            if contract_analysis.get("is_upgradeable", False):
+                details += ". Contract is upgradeable, which increases risk of future changes."
         
         return {
             "type": RiskFactorType.CONTRACT_RISK,
             "level": risk_level,
             "score": risk_score,
-            "details": "Placeholder contract risk assessment"
+            "details": details
+        }
+    
+    async def _assess_program_vulnerability(self, token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Assess program vulnerability risks based on enhanced code analysis.
+        
+        Args:
+            token_data: Token data including contract_analysis from ContractAnalyzer.
+            
+        Returns:
+            Risk factor data specific to program vulnerabilities.
+        """
+        # Check if we have contract analysis data
+        contract_analysis = token_data.get("contract_analysis", {})
+        if not contract_analysis:
+            return None
+        
+        # Calculate risk based on detected vulnerability types
+        detected_vulnerabilities = contract_analysis.get("detected_vulnerabilities", {})
+        
+        # Different vulnerability types have different severity levels
+        severity_weights = {
+            "backdoor": 1.0,  # Highest risk
+            "hidden_mint": 0.8,
+            "unsafe_owner_change": 0.6
+        }
+        
+        # Calculate weighted risk score
+        total_weight = 0
+        weighted_score = 0
+        
+        for vuln_type, instances in detected_vulnerabilities.items():
+            if vuln_type in severity_weights:
+                weight = severity_weights[vuln_type]
+                count = len(instances)
+                weighted_score += weight * min(count, 5)  # Cap at 5 instances per type
+                total_weight += weight
+        
+        if total_weight > 0:
+            risk_score = min(1.0, weighted_score / (total_weight * 5))
+        else:
+            risk_score = 0.0
+        
+        # Determine risk level
+        if risk_score >= 0.75:
+            risk_level = RiskLevel.CRITICAL
+            details = "Critical program vulnerabilities detected"
+        elif risk_score >= 0.5:
+            risk_level = RiskLevel.HIGH
+            details = "High-risk program vulnerabilities detected"
+        elif risk_score >= 0.25:
+            risk_level = RiskLevel.MEDIUM
+            details = "Moderate program security concerns"
+        elif risk_score > 0:
+            risk_level = RiskLevel.LOW
+            details = "Minor program security concerns"
+        else:
+            return None  # No vulnerabilities detected
+        
+        # Add specific vulnerability details
+        if detected_vulnerabilities:
+            vulnerability_details = []
+            for vuln_type, instances in detected_vulnerabilities.items():
+                vulnerability_details.append(f"{vuln_type}: {len(instances)} instances")
+            details += " (" + ", ".join(vulnerability_details) + ")"
+        
+        return {
+            "type": RiskFactorType.PROGRAM_VULNERABILITY,
+            "level": risk_level,
+            "score": risk_score,
+            "details": details
         }
     
     async def _assess_liquidity_risk(self, token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Assess liquidity risks.
+        Assess liquidity risks with enhanced metrics.
         
         Args:
-            token_data: Token data including market info.
+            token_data: Token data including enhanced liquidity metrics.
             
         Returns:
-            Risk factor data if significant risk is detected, None otherwise.
+            Risk factor data with detailed liquidity analysis.
         """
         try:
-            # Extract liquidity data
-            # In a real implementation, this would come from DEX/market data
-            liquidity_usd = token_data.get("market", {}).get("liquidity_usd", 0)
+            # Try to get enhanced liquidity data if available
+            liquidity_data = token_data.get("liquidity", {})
+            total_liquidity = liquidity_data.get("total_liquidity_usd", 0)
+            
+            # Fallback to basic market data if no enhanced data
+            if total_liquidity == 0:
+                total_liquidity = token_data.get("market", {}).get("liquidity_usd", 0)
             
             # Calculate risk based on liquidity
-            if liquidity_usd < self.config["min_liquidity_usd"]:
+            if total_liquidity < self.config["min_liquidity_usd"]:
                 # Low liquidity is high risk
-                if liquidity_usd == 0:
+                if total_liquidity == 0:
                     risk_level = RiskLevel.CRITICAL
                     risk_score = 1.0
                     details = "No liquidity detected"
                 else:
                     risk_level = RiskLevel.HIGH
                     # Calculate risk score based on how far below the threshold
-                    risk_score = 0.5 + 0.5 * (1 - liquidity_usd / self.config["min_liquidity_usd"])
-                    details = f"Low liquidity: ${liquidity_usd:.2f} (below minimum ${self.config['min_liquidity_usd']:.2f})"
+                    risk_score = 0.5 + 0.5 * (1 - total_liquidity / self.config["min_liquidity_usd"])
+                    details = f"Low liquidity: ${total_liquidity:.2f} (below minimum ${self.config['min_liquidity_usd']:.2f})"
             else:
                 # Sufficient liquidity is lower risk
-                ratio = self.config["min_liquidity_usd"] / liquidity_usd
+                ratio = self.config["min_liquidity_usd"] / total_liquidity
                 risk_score = max(0.0, min(0.25, ratio))  # Scale to 0.0-0.25 range
                 risk_level = RiskLevel.LOW
-                details = f"Adequate liquidity: ${liquidity_usd:.2f}"
+                details = f"Adequate liquidity: ${total_liquidity:.2f}"
+            
+            # Add DEX distribution information if available
+            dex_distribution = liquidity_data.get("dex_distribution", {})
+            if dex_distribution:
+                dex_count = len(dex_distribution)
+                if dex_count == 1:
+                    details += f". Warning: Liquidity only on one DEX ({list(dex_distribution.keys())[0]})"
+                else:
+                    details += f". Liquidity spread across {dex_count} DEXs"
+            
+            # Add historical trend information if available
+            historical = liquidity_data.get("historical", {})
+            trend = historical.get("trend", {}).get("trend", "")
+            if trend in ["strongly_decreasing", "decreasing"]:
+                details += f". Warning: Liquidity is {trend.replace('_', ' ')}"
+                # Increase risk for decreasing liquidity
+                risk_score = min(1.0, risk_score + 0.2)
             
             return {
                 "type": RiskFactorType.LIQUIDITY_RISK,
@@ -597,6 +724,68 @@ class RiskAssessmentAgent(Agent):
             
         except Exception as e:
             logger.error(f"Error assessing liquidity risk: {str(e)}")
+            return None
+    
+    async def _assess_liquidity_fragility(self, token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Assess liquidity fragility using enhanced metrics.
+        
+        Args:
+            token_data: Token data including enhanced liquidity metrics.
+            
+        Returns:
+            Risk factor data specific to liquidity fragility.
+        """
+        try:
+            # Check for enhanced liquidity data
+            liquidity_data = token_data.get("liquidity", {})
+            if not liquidity_data:
+                return None
+            
+            # Get depth analysis if available
+            depth_analysis = liquidity_data.get("depth_analysis", {})
+            if not depth_analysis:
+                return None
+            
+            # Extract fragility score (lower is better)
+            fragility_score = depth_analysis.get("fragility_score", 0.5)
+            
+            # Invert score for risk calculation (higher is riskier)
+            risk_score = fragility_score
+            
+            # Determine risk level
+            if risk_score >= 0.75:
+                risk_level = RiskLevel.CRITICAL
+                details = "Extremely fragile liquidity profile"
+            elif risk_score >= 0.5:
+                risk_level = RiskLevel.HIGH
+                details = "Highly fragile liquidity profile"
+            elif risk_score >= 0.25:
+                risk_level = RiskLevel.MEDIUM
+                details = "Moderately fragile liquidity profile"
+            else:
+                risk_level = RiskLevel.LOW
+                details = "Robust liquidity profile"
+            
+            # Add max trade size information
+            max_trade = depth_analysis.get("estimated_max_trade_without_significant_impact", 0)
+            if max_trade > 0:
+                details += f". Max trade without significant impact: ${max_trade:.2f}"
+            
+            # Add depth classification
+            depth_class = depth_analysis.get("depth_classification", "")
+            if depth_class:
+                details += f". Liquidity depth classification: {depth_class.replace('_', ' ')}"
+            
+            return {
+                "type": RiskFactorType.LIQUIDITY_FRAGILITY,
+                "level": risk_level,
+                "score": risk_score,
+                "details": details
+            }
+            
+        except Exception as e:
+            logger.error(f"Error assessing liquidity fragility: {str(e)}")
             return None
     
     async def _assess_concentration_risk(self, token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
